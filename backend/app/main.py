@@ -1,73 +1,80 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import pandas as pd
+import joblib
+from pathlib import Path
+import numpy as np
+import uvicorn
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-class TransactionData(BaseModel):
+# Model loading with validation
+MODEL_PATH = Path(__file__).parent / "model" / "fraud_detection_model.joblib"
+
+try:
+    model = joblib.load(MODEL_PATH)
+    logger.info(f"Model loaded successfully. Features expected: {model.feature_names_in_}")
+except Exception as e:
+    logger.error(f"Model loading failed: {str(e)}")
+    raise RuntimeError("Failed to load model. Please retrain the model first.")
+
+class Transaction(BaseModel):
     transaction_id: str
     amount: float
-    department: str
-    supplier: str
-    officer_id: str
-    contract_duration: int
-    bidding_process: str
     num_bidders: int
     winning_bid_ratio: float
     previous_contracts: int
-    officer_tenure: int
-    
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (change in production)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    officer_tenure: float
 
-# Test endpoint
-@app.get("/api/test")
-async def test_endpoint():
-    return {"status": "success", "message": "API is working!"}
+@app.post("/predict")
+async def predict(transaction: Transaction):
+    try:
+        # Prepare input with exact feature order
+        input_data = [
+            transaction.amount,
+            transaction.num_bidders,
+            transaction.winning_bid_ratio,
+            transaction.previous_contracts,
+            transaction.officer_tenure
+        ]
+        
+        # Create DataFrame with correct column names
+        features = pd.DataFrame([input_data], columns=model.feature_names_in_)
+        
+        # Predict
+        proba = model.predict_proba(features)[0][1]
+        
+        return {
+            "transaction_id": transaction.transaction_id,
+            "fraud_probability": round(float(proba), 4),
+            "is_flagged": proba > 0.7
+        }
+        
+    except Exception as e:
+        logger.error(f"Prediction failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/detect")
-async def detect_fraud(transaction: TransactionData):
-    # Your detection logic here
-    return {
-        "transaction_id": transaction.transaction_id,
-        "is_fraud": False,  # Replace with actual detection
-        "confidence": 0.95
-    }
-# Root endpoint
 @app.get("/")
-async def root():
-    return {"message": "Backend is running"}
-
-@app.post("/api/detect-fraud")
-async def detect_fraud(data: TransactionData):
-    # Your ML model integration here
-    risk_factors = []
-    
-    # Example risk factors (replace with actual model logic)
-    if data.amount > 100000:
-        risk_factors.append("Unusually high transaction amount")
-    if data.winning_bid_ratio > 0.9:
-        risk_factors.append("Suspiciously high winning bid ratio")
-    if data.previous_contracts > 5:
-        risk_factors.append("Repeated contracts with same supplier")
-    if data.officer_tenure < 1:
-        risk_factors.append("New procurement officer with short tenure")
-    
-    is_fraud = len(risk_factors) >= 2  # Simple threshold logic
-    
+async def health_check():
     return {
-        "transaction_id": data.transaction_id,
-        "amount": data.amount,
-        "department": data.department,
-        "is_fraud": is_fraud,
-        "confidence": 0.95 if is_fraud else 0.15,  # Replace with model confidence
-        "risk_factors": risk_factors if is_fraud else ["No significant risk factors"],
-        "timestamp": datetime.datetime.now().isoformat()
+        "status": "running",
+        "model_ready": True,
+        "required_features": model.feature_names_in_.tolist()
     }
+
+def start_server():
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,  # Disabled to avoid warning
+        log_level="info"
+    )
+
+if __name__ == "__main__":
+    start_server()

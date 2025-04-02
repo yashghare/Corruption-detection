@@ -1,48 +1,37 @@
-# backend/app/ml_model/preprocessing.py
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
-def preprocess_data(df, numerical_features, categorical_features):
-    """
-    Preprocesses the procurement data for model training/prediction
+def preprocess_input(input_data):
+    """Preprocess incoming API request data for model prediction"""
+    # Convert to DataFrame for easier manipulation
+    data = pd.DataFrame([input_data])
     
-    Args:
-        df: Pandas DataFrame containing the raw data
-        numerical_features: List of numerical feature names
-        categorical_features: List of categorical feature names
-        
-    Returns:
-        X: Processed feature matrix
-        y: Target variable (if present in df)
-    """
-    # Create a copy to avoid modifying the original dataframe
-    df = df.copy()
+    # One-hot encode categorical variables
+    data = pd.get_dummies(data, columns=['department', 'bidding_process'])
     
-    # Define target variable if present
-    y = None
-    if 'is_fraud' in df.columns:
-        y = df['is_fraud'].values
-        df = df.drop(columns=['is_fraud'])
+    # Ensure all expected columns are present
+    expected_columns = [
+        'amount', 'contract_duration', 'num_bidders', 
+        'winning_bid_ratio', 'previous_contracts', 'officer_tenure',
+        'department_health', 'department_education', 'department_defense',
+        'department_infrastructure', 'bidding_process_open',
+        'bidding_process_restricted', 'bidding_process_direct',
+        'bidding_process_negotiated'
+    ]
     
-    # Create preprocessing pipelines
-    numerical_transformer = Pipeline(steps=[
-        ('scaler', StandardScaler())
-    ])
+    for col in expected_columns:
+        if col not in data.columns:
+            data[col] = 0
     
-    categorical_transformer = Pipeline(steps=[
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
+    # Select features in correct order
+    features = data[expected_columns]
     
-    # Combine preprocessing steps
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numerical_transformer, numerical_features),
-            ('cat', categorical_transformer, categorical_features)
-        ])
+    # Scale numerical features (assuming scaler was fit during training)
+    numerical_cols = [
+        'amount', 'contract_duration', 'num_bidders',
+        'winning_bid_ratio', 'previous_contracts', 'officer_tenure'
+    ]
+    scaler = StandardScaler()
+    features[numerical_cols] = scaler.fit_transform(features[numerical_cols])
     
-    # Apply preprocessing
-    X = preprocessor.fit_transform(df)
-    
-    return X, y
+    return features.values[0]

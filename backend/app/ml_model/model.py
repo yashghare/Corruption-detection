@@ -1,39 +1,33 @@
-# backend/app/ml_model/model.py
 import joblib
-import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, accuracy_score
-from .preprocessing import preprocess_data
+import numpy as np
+from pathlib import Path
+from .preprocessing import preprocess_input
 
 class FraudDetectionModel:
-    def __init__(self):
-        self.model = RandomForestClassifier(n_estimators=100, random_state=42)
-        self.features = [
-            'contract_value', 'contract_duration', 'num_bidders', 
-            'winning_bid_ratio', 'previous_contracts', 'officer_tenure'
-        ]
-        self.categorical_features = ['department', 'supplier', 'bidding_process']
+    def __init__(self, model_path="model/fraud_detection_model.joblib"):
+        self.model = joblib.load(Path(__file__).parent.parent.parent / model_path)
         
-    def train(self, data_path):
-        df = pd.read_csv(data_path)
-        X, y = preprocess_data(df, self.features, self.categorical_features)
+    def predict(self, input_data):
+        """Predict fraud probability and risk factors"""
+        processed_data = preprocess_input(input_data)
+        proba = self.model.predict_proba([processed_data])[0]
+        prediction = self.model.predict([processed_data])[0]
         
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
+        return {
+            "is_fraud": bool(prediction),
+            "confidence": float(proba[1]),  # Probability of fraud
+            "risk_factors": self._get_risk_factors(input_data, processed_data)
+        }
+    
+    def _get_risk_factors(self, raw_input, processed_data):
+        """Generate human-readable risk factors"""
+        risk_factors = []
         
-        self.model.fit(X_train, y_train)
-        
-        y_pred = self.model.predict(X_test)
-        print(classification_report(y_test, y_pred))
-        print(f"Accuracy: {accuracy_score(y_test, y_pred)}")
-        
-        joblib.dump(self.model, 'fraud_detection_model.pkl')
-        joblib.dump(self.features, 'model_features.pkl')
-        joblib.dump(self.categorical_features, 'model_categorical_features.pkl')
-        
-    def predict(self, transaction_data):
-        model = joblib.load('fraud_detection_model.pkl')
-        features = joblib.load('model_features.pkl')
-        categorical_features = joblib
+        if raw_input["amount"] > 100000:
+            risk_factors.append("High transaction amount (> $100,000)")
+        if raw_input["winning_bid_ratio"] > 0.9:
+            risk_factors.append("Suspicious winning bid ratio (> 90%)")
+        if raw_input["num_bidders"] < 3:
+            risk_factors.append("Low competition (< 3 bidders)")
+            
+        return risk_factors

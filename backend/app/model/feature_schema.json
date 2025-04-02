@@ -1,0 +1,32 @@
+{
+  "required_features": [
+    "amount",
+    "contract_duration",
+    "num_bidders",
+    "winning_bid_ratio",
+    "previous_contracts",
+    "officer_tenure",
+    "amount_log",
+    "contracts_per_bidder",
+    "department_health",
+    "department_education",
+    "department_defense",
+    "department_infrastructure",
+    "bidding_process_open",
+    "bidding_process_restricted",
+    "bidding_process_direct"
+  ],
+  "categorical_mappings": {
+    "department": [
+      "health",
+      "education",
+      "defense",
+      "infrastructure"
+    ],
+    "bidding_process": [
+      "open",
+      "restricted",
+      "direct"
+    ]
+  }
+}

@@ -1,29 +1,63 @@
-# backend/app/ml_model/train_model.py
 import pandas as pd
-from .model import FraudDetectionModel
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
+import joblib
+from pathlib import Path
+import json
 
-def train_and_save_model():
-    # Sample data - in practice, you would use real procurement data
-    data = {
-        'transaction_id': [f'tx-{i}' for i in range(1000)],
-        'department': ['health', 'education', 'transport', 'defense', 'infrastructure'] * 200,
-        'contract_value': [10000 + i * 100 for i in range(1000)],
-        'supplier': ['supplierA', 'supplierB', 'supplierC', 'supplierD', 'supplierE'] * 200,
-        'contract_duration': [12 + (i % 24) for i in range(1000)],
-        'bidding_process': ['open', 'restricted', 'direct', 'negotiated'] * 250,
-        'num_bidders': [3 + (i % 5) for i in range(1000)],
-        'winning_bid_ratio': [0.8 + (i * 0.002 % 0.4) for i in range(1000)],
-        'previous_contracts': [i % 10 for i in range(1000)],
-        'officer_tenure': [1 + (i % 20) for i in range(1000)],
-        'is_fraud': [i % 20 == 0 for i in range(1000)]  # 5% fraud rate for example
-    }
+# Configuration
+MODEL_DIR = Path(__file__).parent.parent / "model"
+MODEL_DIR.mkdir(exist_ok=True)
+MODEL_PATH = MODEL_DIR / "fraud_detection_model.joblib"
+DATA_PATH = Path(__file__).parent.parent.parent / "data" / "procurement_data.csv"
+
+def load_data():
+    """Load and preprocess data"""
+    df = pd.read_csv(DATA_PATH)
+    df['is_fraud'] = df['is_fraud'].astype(int)
     
-    df = pd.DataFrame(data)
-    df.to_csv('procurement_data.csv', index=False)
+    # Select only the features we want to use
+    features = [
+        'amount',
+        'num_bidders',
+        'winning_bid_ratio',
+        'previous_contracts',
+        'officer_tenure',
+        'is_fraud'
+    ]
+    df = df[features]
     
-    model = FraudDetectionModel()
-    model.train('procurement_data.csv')
-    print("Model trained and saved successfully!")
+    return df
+
+def train_and_evaluate():
+    df = load_data()
+    
+    # Features and target
+    X = df.drop('is_fraud', axis=1)
+    y = df['is_fraud']
+    
+    # Train-test split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    
+    # Train model
+    model = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=10,
+        class_weight='balanced',
+        random_state=42
+    )
+    model.fit(X_train, y_train)
+    
+    # Evaluate
+    y_pred = model.predict(X_test)
+    print(classification_report(y_test, y_pred))
+    print(confusion_matrix(y_test, y_pred))
+    
+    # Save model
+    joblib.dump(model, MODEL_PATH)
+    print(f"Model saved to {MODEL_PATH}")
 
 if __name__ == "__main__":
-    train_and_save_model()
+    train_and_evaluate()

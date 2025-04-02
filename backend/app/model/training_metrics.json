@@ -1,0 +1,31 @@
+{
+  "precision": 0.9201277955271565,
+  "recall": 0.6857142857142857,
+  "f1": 0.7858117326057299,
+  "roc_auc": 0.9313940092165898,
+  "confusion_matrix": [
+    [
+      5555,
+      25
+    ],
+    [
+      132,
+      288
+    ]
+  ],
+  "feature_importance": {
+    "amount": 0.065201959738229,
+    "contract_duration": 0.016580456780750406,
+    "num_bidders": 0.10294733868878321,
+    "winning_bid_ratio": 0.5695100598050286,
+    "previous_contracts": 0.16468022620211517,
+    "officer_tenure": 0.05352542387525428,
+    "department_defense": 0.0034878894289685964,
+    "department_education": 0.004762198495865028,
+    "department_health": 0.005788807029166839,
+    "department_infrastructure": 0.0011615326003168258,
+    "bidding_process_direct": 0.0031888489107026936,
+    "bidding_process_open": 0.0051263408873469364,
+    "bidding_process_restricted": 0.004038917557472371
+  }
+}
